@@ -21,12 +21,14 @@ func talk(c net.Conn) {
 
 	buf := []byte("x")
 	for range time.Tick(time.Second * 1) {
+		c.SetWriteDeadline(time.Now().Add(time.Second * 1))
 		_, err := c.Write(buf)
 		if err != nil {
 			log.Printf("[w:err] %v\n", err)
 			break
 		}
 
+		c.SetReadDeadline(time.Now().Add(time.Second * 1))
 		_, err = c.Read(buf)
 		if err != nil {
 			log.Printf("[r:err] %v\n", err)
