@@ -10,6 +10,8 @@ import (
 	"strings"
 	"sync/atomic"
 	"time"
+
+	"github.com/jingyuanliang/conntest/pkg/version"
 )
 
 var cnt atomic.Int64
@@ -21,14 +23,14 @@ func talk(c net.Conn) {
 
 	buf := []byte("x")
 	for range time.Tick(time.Second * 1) {
-		c.SetWriteDeadline(time.Now().Add(time.Second * 1))
+		c.SetWriteDeadline(time.Now().Add(time.Second * 10))
 		_, err := c.Write(buf)
 		if err != nil {
 			log.Printf("[w:err] %v\n", err)
 			break
 		}
 
-		c.SetReadDeadline(time.Now().Add(time.Second * 1))
+		c.SetReadDeadline(time.Now().Add(time.Second * 10))
 		_, err = c.Read(buf)
 		if err != nil {
 			log.Printf("[r:err] %v\n", err)
@@ -92,6 +94,7 @@ func explicit() {
 
 func main() {
 	log.SetPrefix(fmt.Sprintf("[pid:%d] ", os.Getpid()))
+	log.Printf("version: %s\n", version.Version)
 
 	go func() {
 		for range time.Tick(time.Second * 1) {

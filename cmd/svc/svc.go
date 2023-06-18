@@ -8,12 +8,15 @@ import (
 	"os"
 	"sync/atomic"
 	"time"
+
+	"github.com/jingyuanliang/conntest/pkg/version"
 )
 
 var cnt atomic.Int64
 
 func main() {
 	log.SetPrefix(fmt.Sprintf("[pid:%d] ", os.Getpid()))
+	log.Printf("version: %s\n", version.Version)
 
 	l, err := net.Listen(os.Args[1], os.Args[2])
 	if err != nil {
