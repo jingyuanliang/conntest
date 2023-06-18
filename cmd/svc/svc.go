@@ -43,7 +43,10 @@ func main() {
 			defer cnt.Add(-1)
 			defer c.Close()
 
-			io.Copy(c, c)
+			_, err := io.Copy(c, c)
+			if err != nil {
+				log.Printf("[c:err] %v\n", err)
+			}
 		}(conn)
 	}
 }
