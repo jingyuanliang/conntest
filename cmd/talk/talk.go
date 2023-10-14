@@ -1,12 +1,12 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"log"
 	"net"
 	"net/netip"
 	"os"
-	"strconv"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -14,10 +14,31 @@ import (
 	"github.com/jingyuanliang/conntest/pkg/version"
 )
 
-const (
-	deadline = time.Second * 10
-	steady   = time.Second * 10
+var (
+	timeout  time.Duration
+	deadline time.Duration
+	steady   time.Duration
+
+	network string
+	address string
+	bind    string
+	begin   int
+	end     int
 )
+
+func init() {
+	flag.DurationVar(&timeout, "timeout", time.Second*10, "timeout for connection")
+	flag.DurationVar(&deadline, "deadline", time.Second*10, "deadline for read/write")
+	flag.DurationVar(&steady, "steady", time.Second*0, "terminate if stay unchanged for")
+
+	flag.StringVar(&network, "network", "tcp", "network of svc")
+	flag.StringVar(&address, "address", "", "address of svc")
+	flag.StringVar(&bind, "bind", "", "address to bind talk")
+	flag.IntVar(&begin, "begin", 0, "start of port range to bind")
+	flag.IntVar(&end, "end", 0, "end of port range to bind")
+
+	flag.Parse()
+}
 
 var (
 	cnt atomic.Int64
@@ -33,24 +54,28 @@ func talk(c net.Conn) {
 
 	buf := []byte("x")
 	for range time.Tick(time.Second * 1) {
-		err := c.SetWriteDeadline(time.Now().Add(deadline))
-		if err != nil {
-			firstErrCh <- cnt.Load()
-			log.Printf("[wd:err] %v\n", err)
-			break
+		if deadline != 0 {
+			err := c.SetWriteDeadline(time.Now().Add(deadline))
+			if err != nil {
+				firstErrCh <- cnt.Load()
+				log.Printf("[wd:err] %v\n", err)
+				break
+			}
 		}
-		_, err = c.Write(buf)
+		_, err := c.Write(buf)
 		if err != nil {
 			firstErrCh <- cnt.Load()
 			log.Printf("[w:err] %v\n", err)
 			break
 		}
 
-		err = c.SetReadDeadline(time.Now().Add(deadline))
-		if err != nil {
-			firstErrCh <- cnt.Load()
-			log.Printf("[rd:err] %v\n", err)
-			break
+		if deadline != 0 {
+			err := c.SetReadDeadline(time.Now().Add(deadline))
+			if err != nil {
+				firstErrCh <- cnt.Load()
+				log.Printf("[rd:err] %v\n", err)
+				break
+			}
 		}
 		_, err = c.Read(buf)
 		if err != nil {
@@ -63,7 +88,11 @@ func talk(c net.Conn) {
 
 func implicit() {
 	for {
-		conn, err := net.Dial(os.Args[1], os.Args[2])
+		dialer := net.Dialer{
+			Timeout: timeout,
+		}
+
+		conn, err := dialer.Dial(network, address)
 		if err != nil {
 			log.Printf("[d:err] %v\n", err)
 			time.Sleep(time.Second * 1)
@@ -75,17 +104,7 @@ func implicit() {
 }
 
 func explicit() {
-	addr, err := netip.ParseAddr(os.Args[3])
-	if err != nil {
-		log.Fatalf("[err] %v", err)
-	}
-
-	begin, err := strconv.Atoi(os.Args[4])
-	if err != nil {
-		log.Fatalf("[err] %v", err)
-	}
-
-	end, err := strconv.Atoi(os.Args[5])
+	addr, err := netip.ParseAddr(bind)
 	if err != nil {
 		log.Fatalf("[err] %v", err)
 	}
@@ -94,10 +113,11 @@ func explicit() {
 		for i := begin; i <= end; i++ {
 			ap := netip.AddrPortFrom(addr, uint16(i))
 			dialer := net.Dialer{
+				Timeout:   timeout,
 				LocalAddr: net.TCPAddrFromAddrPort(ap),
 			}
 
-			conn, err := dialer.Dial(os.Args[1], os.Args[2])
+			conn, err := dialer.Dial(network, address)
 			if err != nil {
 				if !strings.Contains(err.Error(), "bind: address already in use") {
 					log.Printf("[d:err] [%s] %v\n", ap, err)
@@ -136,19 +156,16 @@ func main() {
 			if c > topCnt {
 				topCnt = c
 				topTime = time.Now()
-			} else if time.Since(topTime) > steady {
+			} else if steady != 0 && time.Since(topTime) > steady {
 				log.Printf("[complete] top-conn %d, first-err %d\n", topCnt, firstErr.Load())
 				os.Exit(0)
 			}
 		}
 	}()
 
-	switch len(os.Args) {
-	case 3:
+	if bind == "" {
 		implicit()
-	case 6:
+	} else {
 		explicit()
-	default:
-		log.Fatalf("[args] %v\n", os.Args)
 	}
 }
