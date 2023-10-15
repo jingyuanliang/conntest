@@ -18,6 +18,8 @@ var (
 	timeout  time.Duration
 	deadline time.Duration
 	steady   time.Duration
+	tick     time.Duration
+	delay    time.Duration
 
 	network string
 	address string
@@ -30,6 +32,8 @@ func init() {
 	flag.DurationVar(&timeout, "timeout", time.Second*10, "timeout for connection")
 	flag.DurationVar(&deadline, "deadline", time.Second*10, "deadline for read/write")
 	flag.DurationVar(&steady, "steady", time.Second*0, "terminate if stay unchanged for")
+	flag.DurationVar(&tick, "tick", time.Second*1, "interval between each ping/pong")
+	flag.DurationVar(&delay, "delay", time.Second*1, "delay after dial error")
 
 	flag.StringVar(&network, "network", "tcp", "network of svc")
 	flag.StringVar(&address, "address", "", "address of svc")
@@ -53,7 +57,7 @@ func talk(c net.Conn) {
 	defer c.Close()
 
 	buf := []byte("x")
-	for range time.Tick(time.Second * 1) {
+	for range time.Tick(tick) {
 		if deadline != 0 {
 			err := c.SetWriteDeadline(time.Now().Add(deadline))
 			if err != nil {
@@ -95,7 +99,7 @@ func implicit() {
 		conn, err := dialer.Dial(network, address)
 		if err != nil {
 			log.Printf("[d:err] %v\n", err)
-			time.Sleep(time.Second * 1)
+			time.Sleep(delay)
 			continue
 		}
 
@@ -121,7 +125,7 @@ func explicit() {
 			if err != nil {
 				if !strings.Contains(err.Error(), "bind: address already in use") {
 					log.Printf("[d:err] [%s] %v\n", ap, err)
-					time.Sleep(time.Second * 1)
+					time.Sleep(delay)
 				}
 				continue
 			}
@@ -130,7 +134,7 @@ func explicit() {
 		}
 
 		log.Printf("[loop]\n")
-		time.Sleep(time.Second * 1)
+		time.Sleep(delay)
 	}
 }
 
