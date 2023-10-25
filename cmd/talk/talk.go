@@ -107,6 +107,16 @@ func implicit() {
 	}
 }
 
+func addrFromAddrPort(ap netip.AddrPort) net.Addr {
+	if strings.HasPrefix(network, "tcp") {
+		return net.TCPAddrFromAddrPort(ap)
+	}
+	if strings.HasPrefix(network, "udp") {
+		return net.UDPAddrFromAddrPort(ap)
+	}
+	panic(fmt.Sprintf("unknown network: %s", network))
+}
+
 func explicit() {
 	addr, err := netip.ParseAddr(bind)
 	if err != nil {
@@ -118,7 +128,7 @@ func explicit() {
 			ap := netip.AddrPortFrom(addr, uint16(i))
 			dialer := net.Dialer{
 				Timeout:   timeout,
-				LocalAddr: net.TCPAddrFromAddrPort(ap),
+				LocalAddr: addrFromAddrPort(ap),
 			}
 
 			conn, err := dialer.Dial(network, address)
