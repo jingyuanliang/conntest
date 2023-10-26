@@ -107,20 +107,23 @@ func implicit() {
 	}
 }
 
-func addrFromAddrPort(ap netip.AddrPort) net.Addr {
-	if strings.HasPrefix(network, "tcp") {
-		return net.TCPAddrFromAddrPort(ap)
-	}
-	if strings.HasPrefix(network, "udp") {
-		return net.UDPAddrFromAddrPort(ap)
-	}
-	panic(fmt.Sprintf("unknown network: %s", network))
-}
-
 func explicit() {
 	addr, err := netip.ParseAddr(bind)
 	if err != nil {
 		log.Fatalf("[err] %v", err)
+	}
+
+	var addrFromAddrPort func(addr netip.AddrPort) net.Addr
+	if strings.HasPrefix(network, "tcp") {
+		addrFromAddrPort = func(addr netip.AddrPort) net.Addr {
+			return net.TCPAddrFromAddrPort(addr)
+		}
+	} else if strings.HasPrefix(network, "udp") {
+		addrFromAddrPort = func(addr netip.AddrPort) net.Addr {
+			return net.UDPAddrFromAddrPort(addr)
+		}
+	} else {
+		log.Fatalf("[err] unknown network: %s", network)
 	}
 
 	for {
